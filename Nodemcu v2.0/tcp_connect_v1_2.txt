@@ -1,0 +1,153 @@
+/* 这是wifi调试库~
+ *  
+ *  
+ *  
+ */
+//SCL -D1 SDA -D2 IIC
+#include <ESP8266WiFi.h>
+#include <ESP8266WiFiMulti.h>   // 使用WiFiMulti库 
+#include <DS1302.h>
+const char* ssid = "N6-506-Student"; //要加入的WiFi名
+const char* password = "N6-506-Student"; //要加入的WiFi密码
+const char *host = "192.168.31.45";//修改为Server服务端的IP
+WiFiClient client;
+const int tcpPort = 9999;//修改为你建立的Server服务端的端口号，此端口号是创建服务器时指定的。
+String cmd ="TIME";
+#include <Adafruit_Sensor.h>
+#define SEALEVELPRESSURE_HPA (1013.25)
+#include <Adafruit_BMP280.h>
+Adafruit_BMP280 bmp; // I2C
+String temperature, humidity, pressure, altitude,Light;
+String str,data,local_time;
+#include <BH1750.h>
+BH1750 lightMeter(0x23);                  // GY30
+namespace {
+const int kCePin   = D5;  // Chip Enable
+const int kIoPin    = D4;  // Input/Output
+const int kSclkPin = D3;  // Serial Clock
+// const int kCePin   = D5;  // Chip Enable
+// const int kIoPin    = D4;  // Input/Output
+// const int kSclkPin = D0;  // Serial Clock
+}
+String dayAsString(const Time::Day day) {
+  switch (day) {
+    case Time::kSunday:        return "Sunday";
+    case Time::kMonday:       return "Monday";
+    case Time::kTuesday:       return "Tuesday";
+    case Time::kWednesday: return "Wednesday";
+    case Time::kThursday:     return "Thursday";
+    case Time::kFriday:          return "Friday";
+    case Time::kSaturday:      return "Saturday";
+  }
+  return "(unknown day)";
+}
+DS1302 rtc(kCePin, kIoPin, kSclkPin); // 时钟模块配置
+
+
+void setup(void){
+  Serial.begin(115200);
+  delay(100);
+    WiFi.mode(WIFI_STA); //设置为STA模式
+  Serial.println("AT+RST");//设置完之后重启
+  Wire.begin();
+  bmp.begin(0x76);  
+lightMeter.begin(BH1750::ONE_TIME_HIGH_RES_MODE);//GY30
+  lightMeter.readLightLevel();
+  WiFi.begin(ssid, password); //连接目标WiFi
+  Serial.println("");
+  // Wait for connection
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.println("wifiw未连接......");
+  }
+  Serial.println("");
+  Serial.print("Connected to ");
+  Serial.println(ssid);
+  Serial.print("IP address: ");
+  Serial.println(WiFi.localIP()); //输出获取的IP地址
+  setclock();
+     client.stop();//断开连接
+     delay(1000);
+         client.connect(host, tcpPort); //连接tcp
+      calculator();
+  Light=  lightMeter.readLightLevel();
+str="Nmcu-N_a3-Tem-Press-Lig,," + temperature + "," + "," + pressure + "," + Light ;
+  client.print(str);  //发送数据
+  Serial.println(str);
+  client.stop();
+}
+
+
+
+
+
+void loop(void)
+{
+     delay(1000);
+  Time t = rtc.time();
+    Serial.print(t.hr);Serial.print(":");Serial.print(t.min);Serial.print(":");Serial.print(t.sec);
+   Serial.print("\n");
+    if(int(t.min)%10==0 && t.sec<5 && t.sec>2){
+           client.connect(host, tcpPort); //连接tcp
+      calculator();
+  Light=  lightMeter.readLightLevel();
+str="Nmcu-N_a3-Tem-Press-Lig,," + temperature + "," + "," + pressure + "," + Light ;
+  client.print(str);  //发送数据
+  Serial.println(str);
+  client.stop();
+    }
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.println("wifi未连接......");
+      Serial.println("");
+  Serial.print("Connected to ");
+  Serial.println(ssid);
+  Serial.print("IP address: ");
+  }
+}
+
+
+void calculator(){
+    temperature = bmp.readTemperature();
+  pressure = bmp.readPressure() / 100.0F;
+}
+
+
+void setclock(){
+    // 发送数据到Tcp server
+    // Serial.println(ipaddr);
+    client.connect(host, tcpPort);
+    delay(200);
+    client.print("TIME");//必须是这样好兄弟们
+    //读取从server返回到响应数据
+    String data = client.readStringUntil('!');  //如没有!,则自动读完,即 String data = client.readString();
+    Serial.println(data);
+    rtc.writeProtect(false);
+    rtc.halt(false);
+    int mon, date, min, sec, hr;
+    String temp, temp1;
+    temp = data[5];
+    temp1 = data[6];
+    mon = temp.toInt() * 10 + temp1.toInt();
+    temp = data[8];
+    temp1 = data[9];
+    date = temp.toInt() * 10 + temp1.toInt();
+    temp = data[11];
+    temp1 = data[12];
+    hr = temp.toInt() * 10 + temp1.toInt();  //yes
+    temp = data[14];
+    temp1 = data[15];
+    min = temp.toInt() * 10 + temp1.toInt();
+    temp = data[17];
+    temp1 = data[18];
+    sec = temp.toInt() * 10 + temp1.toInt();
+    if (sec+5 > 60){
+        min=min+1;
+        sec=sec-55;
+    }
+    else{
+        sec=sec+5;
+    }                                                                             
+    Time t(2019, mon, date, hr, min, sec, Time::kSunday);
+    rtc.time(t);
+}
