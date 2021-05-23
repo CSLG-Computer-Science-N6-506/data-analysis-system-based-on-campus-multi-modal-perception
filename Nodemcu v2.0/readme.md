@@ -14,7 +14,7 @@
 
 ### tcp_connect_v1_2.ino 与 tcp_connect_v1_2.txt 的区别
 
-**代码中使用的模块是 BMP280，GY-30， DS1302 **
+**代码中使用的模块是 BMP280，GY-30， DS1302**
 
 > 1. ino 文件是基于 HTTP 协议的数据交互方式，适用于与 fastAPI 构建的后端项目通信
 > 2. txt文件是基于 TCP 的数据交互方式，适用于现有的由 socket 搭建的后端，TRserver4.py 
